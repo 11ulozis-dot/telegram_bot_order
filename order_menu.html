@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Room Service Menu & Order</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+    </style>
+</head>
+<body class="p-4 sm:p-8 flex justify-center min-h-screen">
+
+    <div class="w-full max-w-lg bg-white shadow-xl rounded-xl p-6 sm:p-8">
+        <h1 class="text-3xl font-bold text-gray-800 mb-6 border-b pb-2">Room Service — Меню</h1>
+        <p id="response-message" class="text-center font-medium py-3 rounded-lg hidden"></p>
+
+        <div id="menu-items" class="space-y-4 mb-8">
+            </div>
+
+        <form id="order-form" class="space-y-4">
+            <h2 class="text-2xl font-semibold text-gray-700 pt-4 border-t mt-6">Оформить заказ</h2>
+            
+            <div>
+                <label for="dish-select" class="block text-sm font-medium text-gray-700 mb-1">Выбранное блюдо:</label>
+                <select id="dish-select" name="dish_id" required 
+                        class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md shadow-sm">
+                    </select>
+            </div>
+
+            <div>
+                <label for="room-number" class="block text-sm font-medium text-gray-700 mb-1">Номер комнаты</label>
+                <input type="text" id="room-number" name="room_number" required placeholder="Например, 405"
+                       class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+            </div>
+
+            <div>
+                <label for="full-name" class="block text-sm font-medium text-gray-700 mb-1">ФИО Гостя</label>
+                <input type="text" id="full-name" name="full_name" required placeholder="Иванов Иван Иванович"
+                       class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+            </div>
+            
+            <div>
+                <label for="phone-number" class="block text-sm font-medium text-gray-700 mb-1">Номер телефона</label>
+                <input type="tel" id="phone-number" name="phone_number" required placeholder="+7 (900) 123-45-67"
+                       class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+            </div>
+
+            <div class="flex space-x-4">
+                <div class="w-1/2">
+                    <label for="guests-count" class="block text-sm font-medium text-gray-700 mb-1">Кол-во гостей</label>
+                    <input type="number" id="guests-count" name="guests_count" required min="1" value="1"
+                           class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                </div>
+                <div class="w-1/2">
+                    <label for="delivery-time" class="block text-sm font-medium text-gray-700 mb-1">Время доставки</label>
+                    <input type="time" id="delivery-time" name="delivery_time" required 
+                           class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                </div>
+            </div>
+
+            <button type="submit" id="submit-button"
+                    class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-lg font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition duration-150 ease-in-out">
+                Отправить заказ
+            </button>
+            <div id="loading-indicator" class="hidden text-center text-green-600">
+                <p>Обработка заказа...</p>
+            </div>
+        </form>
+    </div>
+
+<script>
+        // *** 🟢 АКТУАЛЬНЫЙ URL ВАШЕГО FLASK СЕРВЕРА 🟢 ***
+        // Используем относительный путь, чтобы избежать проблем с CORS,
+        // так как HTML теперь отдается самим Flask-сервером.
+        const FLASK_API_URL = "/api/place_order"; 
+        // *************************************************************************
+
+        const MENU_DATA = {
+            "B001": { "name": "Завтрак", "price": 12.50 },
+            "L001": { "name": "Паста Песто", "price": 15.00 },
+            "D001": { "name": "Свежевыжатый сок", "price": 5.00 }
+        };
+
+        const form = document.getElementById('order-form');
+        const dishSelect = document.getElementById('dish-select');
+        const menuItemsDiv = document.getElementById('menu-items');
+        const messageDiv = document.getElementById('response-message');
+        const submitButton = document.getElementById('submit-button');
+        const loadingIndicator = document.getElementById('loading-indicator');
+
+        // --- Инициализация: Заполнение меню и формы ---
+        function initializeMenu() {
+            let menuHtml = '';
+            let selectOptions = '';
+            
+            for (const id in MENU_DATA) {
+                const item = MENU_DATA[id];
+                menuHtml += `
+                    <div class="flex justify-between items-center p-3 border rounded-lg bg-gray-50">
+                        <span class="text-gray-900 font-semibold">${item.name} (${id})</span>
+                        <span class="text-indigo-600 font-bold">$${item.price.toFixed(2)}</span>
+                    </div>
+                `;
+                selectOptions += `<option value="${id}">${item.name} ($${item.price.toFixed(2)})</option>`;
+            }
+            
+            menuItemsDiv.innerHTML = menuHtml;
+            dishSelect.innerHTML = selectOptions;
+
+            const now = new Date();
+            const timeString = now.toTimeString().slice(0, 5);
+            document.getElementById('delivery-time').value = timeString;
+        }
+
+        // --- Отображение сообщения ---
+        function showMessage(type, text) {
+            messageDiv.textContent = text;
+            messageDiv.className = 'text-center font-medium py-3 rounded-lg block';
+            if (type === 'success') {
+                messageDiv.classList.add('bg-green-100', 'text-green-800');
+            } else if (type === 'error') {
+                messageDiv.classList.add('bg-red-100', 'text-red-800');
+            } else {
+                messageDiv.classList.add('bg-blue-100', 'text-blue-800');
+            }
+            messageDiv.scrollIntoView({ behavior: 'smooth' });
+            // Сообщение остается видимым до следующей отправки или перезагрузки
+            // setTimeout(() => { messageDiv.classList.add('hidden'); }, 5000); 
+        }
+
+        // --- Обработчик отправки формы (теперь на Flask) ---
+        form.addEventListener('submit', async function(event) {
+            event.preventDefault(); // Предотвращаем стандартную отправку формы
+            
+            // 1. Блокируем UI
+            submitButton.disabled = true;
+            submitButton.classList.add('opacity-50');
+            loadingIndicator.classList.remove('hidden');
+            messageDiv.classList.add('hidden');
+
+            try {
+                // 2. Собираем данные формы
+                const selectedDishId = dishSelect.value;
+                const selectedDish = MENU_DATA[selectedDishId];
+                
+                const formData = {
+                    "guest_name": document.getElementById('full-name').value,
+                    "room_number": document.getElementById('room-number').value,
+                    "phone_number": document.getElementById('phone-number').value,
+                    "delivery_time": document.getElementById('delivery-time').value,
+                    "guest_count": parseInt(document.getElementById('guests-count').value),
+                    "order_details": { // Создаем объект с деталями заказа
+                        [selectedDish.name]: 1 // Пока просто 1 штука выбранного блюда
+                    }
+                };
+
+                // 3. Отправляем данные на Flask-сервер
+                const response = await fetch(FLASK_API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(formData),
+                });
+
+                const result = await response.json();
+
+                // 4. Обрабатываем ответ
+                if (response.ok) { // Если HTTP-статус 2xx
+                    showMessage('success', result.message || "Заказ успешно отправлен!");
+                    form.reset(); // Очищаем форму
+                    initializeMenu(); // Переинициализируем меню
+                } else { // Если HTTP-статус 4xx или 5xx
+                    showMessage('error', result.error || "Ошибка при отправке заказа.");
+                }
+
+            } catch (error) {
+                console.error('Ошибка при отправке заказа:', error);
+                // Это будет выведено, если произошла ошибка сети (например, сервер не запущен)
+                showMessage('error', "Ошибка соединения с сервером. Убедитесь, что Flask-сервер запущен.");
+            } finally {
+                // В любом случае разблокируем UI
+                submitButton.disabled = false;
+                submitButton.classList.remove('opacity-50');
+                loadingIndicator.classList.add('hidden');
+            }
+        });
+
+        // Запуск инициализации при загрузке страницы
+        window.onload = initializeMenu;
+
+    </script>
+</body>
+</html>
